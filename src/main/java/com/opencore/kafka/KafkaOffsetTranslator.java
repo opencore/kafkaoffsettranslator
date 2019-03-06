@@ -6,10 +6,12 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.DescribeTopicsResult;
 import org.apache.kafka.clients.admin.ListConsumerGroupOffsetsResult;
@@ -20,6 +22,7 @@ import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.TopicPartitionInfo;
 
 
 public class KafkaOffsetTranslator {
@@ -64,40 +67,47 @@ public class KafkaOffsetTranslator {
 
             // poll for messages, this should return all messages that confirm to the committed offsets
             // fringe cases are always possible in situations with a high partition count or very large messages
-            // this should be enclosed in a loop for any actual usage
+            // this should probably be enclosed in a loop for any actual usage
             ConsumerRecords<Integer, Integer> records = consumer.poll(Duration.ofSeconds(1));
 
             Map<Integer, ConsumerRecord<Integer, Integer>> lastReadSourceRecords = new HashMap<>();
 
             // Iterate over all in scope partitions and look for matching messages
             for (TopicPartition part : transformedOffsets.keySet()) {
-                List<ConsumerRecord<Integer, Integer>> partitionRecords = records.records(part);
-                long offset = offsetData.get(part).offset() - 1;
-
-                Set<ConsumerRecord<Integer, Integer>> matchedRecords = partitionRecords.stream()
+                Optional<ConsumerRecord<Integer, Integer>> recordFound = records.records(part).stream()
                     .filter(record -> record.offset() == transformedOffsets.get(part).offset())
-                    .collect(Collectors.toSet());
+                    .findFirst();
 
-                if (matchedRecords.size() == 1) {
-                    ConsumerRecord<Integer, Integer> match = matchedRecords.iterator().next();
-                    lastReadSourceRecords.put(match.value(), match);
+                if (!recordFound.isPresent()) {
+                    // No record found for this partition
+                    // insert
+                    // handling here
+                } else {
+                    lastReadSourceRecords.put(recordFound.get().value(), recordFound.get());
                 }
             }
-            // Close consumer to clean up
-            consumer.close();
+
+            if (transformedOffsets.size() != lastReadSourceRecords.size()) {
+                // we have not found records for all committed offsets
+                // probably something went wrong
+            }
 
             // We now have the last read records stored in lastReadSourceRecords
 
+            // Describe targetTopic
             DescribeTopicsResult topicsResult = adminClient.describeTopics(Arrays.asList(targetTopic));
             TopicDescription topicDescription = topicsResult.all().get().get(targetTopic);
 
-            adminProps.setProperty(ConsumerConfig.GROUP_ID_CONFIG, "irrelevant");
-            consumer = new KafkaConsumer<Integer, Integer>(adminProps);
-            consumer.subscribe(Arrays.asList(targetTopic));
-            consumer.poll(Duration.ofSeconds(1));
+            // Convert to set of TopicPartition that can be used for consumer assigment
+            Set<TopicPartition> collect = topicDescription.partitions()
+                .stream()
+                .map(part -> new TopicPartition(targetTopic, part.partition()))
+                .collect(Collectors.toSet());
+
+            consumer.assign(collect);
             consumer.seekToBeginning(consumer.assignment());
 
-            // We are now at the beginning of the targettopic and can simply read all
+            // We are now at the beginning of targetTopic and can simply read all
             // messages while comparing to what we read before - any match is reported as a matched offset
             int emptyPolls = 0;
 
@@ -133,6 +143,7 @@ public class KafkaOffsetTranslator {
 
             // Stick code in here to commit offsets to targetTopic for consumerGroup
 
+            consumer.close();
 
         } catch (InterruptedException e) {
             e.printStackTrace();
