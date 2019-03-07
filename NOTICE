@@ -1,0 +1,15 @@
+Apache [PRODUCT_NAME]
+Copyright [2019] OpenCore GmbH & Co. KG
+
+This product includes software developed at
+The OpenCore GmbH & Co. KG (http://www.opencore.com/).
+
+This tests for this product include the modified source code of the class ClusterTestHarness.java
+which is part of the Confluent Schema Registry which is available under the Confluent Community License
+Version 1.0. This license requires inclusion of the following paragraph:
+
+This software is made available by Confluent, Inc., under the terms of the Confluent Community License Agreement,
+Version 1.0 located at http://www.confluent.io/confluent-community-license.
+BY INSTALLING, DOWNLOADING, ACCESSING, USING OR DISTRIBUTING ANY OF THE SOFTWARE, YOU AGREE TO THE TERMS OF SUCH LICENSE AGREEMENT.
+
+For more details see https://www.confluent.io/confluent-community-license
