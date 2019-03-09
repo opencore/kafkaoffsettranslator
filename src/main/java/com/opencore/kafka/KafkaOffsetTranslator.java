@@ -37,14 +37,14 @@ public class KafkaOffsetTranslator implements Callable<Void> {
 
   private static final Logger logger = LoggerFactory.getLogger(KafkaOffsetTranslator.class);
 
-  @CommandLine.Option(names = {"--source.config"}, required = true, description = "Properties file containing the configuration for the source cluster.")
-  private File sourcePropertiesFile = null;
+  @CommandLine.Option(names = {"--source.config"}, required = true, converter = PropertiesConverter.class, description = "Properties file containing the configuration for the source cluster.")
+  private Properties sourceProperties = null;
 
   @CommandLine.Option(names = {"--source-property"}, description = "Property for the source cluster")
   private Properties sourcePropertiesList = null;
 
-  @CommandLine.Option(names = {"--target.config"}, required = true, description = "Properties file containing the configuration for the target cluster.")
-  private File targetPropertiesFile = null;
+  @CommandLine.Option(names = {"--target.config"}, converter = PropertiesConverter.class, required = true, description = "Properties file containing the configuration for the target cluster.")
+  private Properties targetProperties = null;
 
   @CommandLine.Option(names = {"--target-property"}, description = "Individual property for the target cluster, these will override anything specificed in the target.config file.\n Can be specified multiple times.")
   private Properties targetPropertiesList = null;
@@ -67,9 +67,6 @@ public class KafkaOffsetTranslator implements Callable<Void> {
 
   @Override
   public Void call() throws Exception {
-    Properties sourceProperties = loadProperties(sourcePropertiesFile);
-    Properties targetProperties = loadProperties(targetPropertiesFile);
-
     // Create Consumer to retrieve messages
 
     sourceProperties.putAll(sourcePropertiesList);
@@ -229,18 +226,6 @@ public class KafkaOffsetTranslator implements Callable<Void> {
       e.printStackTrace();
     }
     return null;
-  }
-
-  private Properties loadProperties(File inputFile) {
-    Properties result = new Properties();
-
-    try {
-      result.load(new FileInputStream(inputFile));
-    } catch (IOException e) {
-      logger.error("Error loading properties from file " + inputFile.getName() + ": " + e.getMessage());
-      System.exit(-1);
-    }
-    return result;
   }
 
   public int getRecordId(ConsumerRecord record) {
